@@ -101,8 +101,9 @@ async function runAction(action: string, row: Row) {
       method: 'POST',
       body: JSON.stringify({ action }),
     })
-    if (!response.ok) {
-      throw new Error('应急通信动作未生效，请稍后重试')
+    const result = await response.json()
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.message ?? '应急通信动作未生效，请稍后重试')
     }
     await reload()
   } catch (error) {

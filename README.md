@@ -15,8 +15,9 @@
 │   ├── src/stores/           会话与筛选状态
 │   └── vite.config.ts        dev server 配置（open: false）
 ├── backend/                  FastAPI（Python） 后端
-│   ├── app/routers/          每个业务模块一组接口
-│   ├── app/services/         业务规则与状态流转
+│   ├── app/modules.py        各业务模块的声明（字段、状态、动作）
+│   ├── app/routers/base.py   接口共用实现，按模块声明生成
+│   ├── app/services/base.py  业务规则与状态流转共用实现
 │   └── app/store.py          内存数据仓库与示例数据
 ├── .gitignore
 └── docker-compose.yml
@@ -72,7 +73,15 @@ npm run dev
 
 ## 约定
 
-- 每个模块的前端页面在 `frontend/src/views/<模块>/index.vue`，后端接口在
-  `backend/app/routers/<模块>.py`，业务规则在 `backend/app/services/<模块>.py`。
-- 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
+- 每个模块的差异只在 `backend/app/modules.py` 里声明（展示字段、必填字段、状态序列、
+  动作规则）；接口由 `app/routers/base.py` 统一生成，业务规则只有
+  `app/services/base.py` 一份实现。
+- 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message, entry }`，
+  错误（含 404/400/422）统一返回 `{ ok: false, message }`。
+- 提交入参的校验只在 `ModuleService.validate_submission` 一处，模块只管声明用到的字段；
+  提交体兼容 `{"values": {...}}` 与平铺的 `{...}` 两种老调用。
+- 同一份提交重复提交只落一次：必填字段归一化后与存量记录一致时沿用原记录，不重复新增。
+- `GET /api/<模块>/recheck` 按现行校验口径重判已存下的历史提交，老记录原样保留，只回判定。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+- 前端各模块页面通过 `src/api/client.ts` 的 `fetchPage` / `postAction` 读写，
+  动作结果与错误说明都按后端的统一字段（`ok` / `message`）解读。

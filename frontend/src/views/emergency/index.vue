@@ -65,7 +65,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 
-import { request } from '@/api/client'
+import { fetchPage, postAction } from '@/api/client'
 
 type Row = Record<string, string | number | null>
 
@@ -97,13 +97,7 @@ function openCreate() {
 async function runAction(action: string, row: Row) {
   errorMessage.value = ''
   try {
-    const response = await request(`${ENDPOINT}/${row.id}/actions`, {
-      method: 'POST',
-      body: JSON.stringify({ action }),
-    })
-    if (!response.ok) {
-      throw new Error('应急通信动作未生效，请稍后重试')
-    }
+    await postAction(`${ENDPOINT}/${row.id}/actions`, { action })
     await reload()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '应急通信操作失败'
@@ -114,13 +108,9 @@ async function reload() {
   errorMessage.value = ''
   const query = new URLSearchParams(filters.value as Record<string, string>).toString()
   try {
-    const response = await request(`${ENDPOINT}?${query}`)
-    if (!response.ok) {
-      throw new Error('应急保障列表读取失败')
-    }
-    const payload = await response.json()
-    rows.value = payload.items ?? []
-    total.value = payload.total ?? rows.value.length
+    const payload = await fetchPage<Row>(`${ENDPOINT}?${query}`)
+    rows.value = payload.items
+    total.value = payload.total
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '应急通信列表读取失败'
   }

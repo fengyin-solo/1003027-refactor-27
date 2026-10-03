@@ -5,8 +5,11 @@
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException
 
 from app.config import settings
 from app.routers import ROUTERS
@@ -22,8 +25,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in ROUTERS:
-    app.include_router(module.router)
+for router in ROUTERS:
+    app.include_router(router)
+
+
+@app.exception_handler(HTTPException)
+async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """HTTP 层错误统一回 {ok, message}，与动作回包的错误口径一致。
+
+    注册在 starlette 的 HTTPException 上：框架自带的 404/405 与业务代码抛的
+    fastapi.HTTPException 都会走到这里。
+    """
+    return JSONResponse(status_code=exc.status_code, content={"ok": False, "message": str(exc.detail)})
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """入参解析失败也回 {ok, message}，不再单独暴露一套 detail 结构。"""
+    message = "；".join(
+        f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in exc.errors()
+    )
+    return JSONResponse(status_code=422, content={"ok": False, "message": message})
 
 
 @app.get("/api/health")
